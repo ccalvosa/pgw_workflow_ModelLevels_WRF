@@ -1,0 +1,561 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PGW Model Levels WRF</title>
+<meta name="description" content="Multi-model pseudo-global warming perturbation of IFS/ERA5 model-level input for WRF, driven by CMIP6 deltas.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+<style>
+:root{
+  --bg:#f7f8fa; --surface:#ffffff; --surface-2:#eef1f5; --fg:#17202a; --muted:#5a6673;
+  --line:#dde3ea; --accent:#c2410c; --accent-2:#1d4ed8; --cold:#2563eb; --warm:#dc2626;
+  --ok:#15803d; --code-bg:#0f172a; --code-fg:#e2e8f0; --shadow:0 1px 2px rgba(16,24,40,.06),0 4px 16px rgba(16,24,40,.06);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0e1116; --surface:#161b22; --surface-2:#1f2630; --fg:#e6edf3; --muted:#9aa7b4;
+    --line:#2b3440; --accent:#fb923c; --accent-2:#60a5fa; --cold:#60a5fa; --warm:#f87171;
+    --ok:#4ade80; --code-bg:#0b0f14; --code-fg:#dbe4ee; --shadow:none;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0e1116; --surface:#161b22; --surface-2:#1f2630; --fg:#e6edf3; --muted:#9aa7b4;
+  --line:#2b3440; --accent:#fb923c; --accent-2:#60a5fa; --cold:#60a5fa; --warm:#f87171;
+  --ok:#4ade80; --code-bg:#0b0f14; --code-fg:#dbe4ee; --shadow:none;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.6 Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:var(--accent-2);text-decoration:none}
+a:hover{text-decoration:underline}
+code,pre,.mono{font-family:"JetBrains Mono",ui-monospace,monospace}
+code{background:var(--surface-2);padding:.1em .35em;border-radius:4px;font-size:.88em}
+.wrap{max-width:1120px;margin:0 auto;padding:0 20px}
+/* nav */
+nav{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+nav .wrap{display:flex;align-items:center;gap:20px;height:56px}
+nav .brand{font-weight:800;letter-spacing:-.01em;color:var(--fg);white-space:nowrap}
+nav .brand span{color:var(--accent)}
+nav .links{display:flex;gap:18px;overflow-x:auto;scrollbar-width:none;flex:1}
+nav .links a{color:var(--muted);font-size:14px;font-weight:500;white-space:nowrap}
+nav .links a:hover{color:var(--fg);text-decoration:none}
+.theme-btn{border:1px solid var(--line);background:var(--surface);color:var(--fg);border-radius:8px;padding:5px 9px;cursor:pointer;font-size:14px}
+/* hero */
+header.hero{padding:72px 0 48px;border-bottom:1px solid var(--line);background:
+  radial-gradient(900px 300px at 85% -10%,color-mix(in srgb,var(--warm) 14%,transparent),transparent 70%),
+  radial-gradient(700px 260px at 0% 0%,color-mix(in srgb,var(--cold) 12%,transparent),transparent 70%)}
+.eyebrow{display:inline-block;font-size:13px;font-weight:600;color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent);padding:4px 10px;border-radius:999px;margin-bottom:18px}
+h1{font-size:clamp(30px,5vw,50px);line-height:1.1;letter-spacing:-.025em;margin:0 0 18px;font-weight:800;max-width:900px}
+.lede{font-size:clamp(17px,2.2vw,20px);color:var(--muted);max-width:780px;margin:0 0 28px}
+.btns{display:flex;flex-wrap:wrap;gap:10px}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:10px 16px;border-radius:9px;font-weight:600;font-size:15px;border:1px solid var(--line);background:var(--surface);color:var(--fg);box-shadow:var(--shadow)}
+.btn:hover{text-decoration:none;border-color:var(--muted)}
+.btn.primary{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-top:44px}
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 18px;box-shadow:var(--shadow)}
+.stat b{display:block;font-size:26px;letter-spacing:-.02em}
+.stat span{color:var(--muted);font-size:14px}
+/* sections */
+section{padding:64px 0;border-bottom:1px solid var(--line)}
+h2{font-size:clamp(24px,3.4vw,32px);letter-spacing:-.02em;margin:0 0 10px}
+h3{font-size:19px;margin:28px 0 8px}
+.sub{color:var(--muted);max-width:780px;margin:0 0 30px}
+.grid4{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,440px),1fr));gap:22px;align-items:start}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:20px;box-shadow:var(--shadow)}
+.card .step{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--accent)}
+.card h4{margin:6px 0 8px;font-size:17px}
+.card p{margin:0;color:var(--muted);font-size:15px}
+.card ul{margin:8px 0 0;padding-left:18px;color:var(--muted);font-size:15px}
+figure{margin:0}
+figure img{width:100%;height:auto;display:block;border-radius:10px;border:1px solid var(--line);background:#fff}
+figcaption{color:var(--muted);font-size:14px;margin-top:10px}
+.pipeline{width:100%;height:auto;margin:6px 0 28px}
+.pipeline text{font-family:Inter,sans-serif;fill:var(--fg)}
+.pipeline .muted{fill:var(--muted)}
+.eq{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:6px 18px;overflow-x:auto;margin:10px 0}
+.note{border-left:3px solid var(--accent);background:var(--surface);padding:12px 16px;border-radius:0 10px 10px 0;color:var(--muted);font-size:15px;margin:16px 0}
+/* tables */
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:14.5px}
+th,td{padding:9px 12px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{background:var(--surface-2);font-weight:600;white-space:nowrap}
+tr:last-child td{border-bottom:none}
+td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+tr.ens td{font-weight:700}
+.neg{color:var(--cold)} .pos{color:var(--warm)}
+.pass{color:var(--ok);font-weight:700}
+/* tabs */
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+.tab{border:1px solid var(--line);background:var(--surface);color:var(--muted);border-radius:999px;padding:7px 14px;font:500 14px Inter,sans-serif;cursor:pointer}
+.tab[aria-selected="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.panel[hidden]{display:none}
+/* demo */
+.demo{display:grid;grid-template-columns:300px 1fr;gap:22px}
+@media (max-width:860px){.demo{grid-template-columns:1fr}}
+.ctrl label{display:block;font-weight:600;font-size:14px;margin:14px 0 6px}
+.ctrl label:first-child{margin-top:0}
+.ctrl select,.ctrl input[type=range]{width:100%}
+.ctrl select{padding:8px;border-radius:8px;border:1px solid var(--line);background:var(--surface-2);color:var(--fg);font:14px Inter,sans-serif}
+.seg{display:flex;border:1px solid var(--line);border-radius:9px;overflow:hidden}
+.seg button{flex:1;border:0;background:var(--surface-2);color:var(--muted);padding:8px;font:600 13px Inter,sans-serif;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--fg);color:var(--bg)}
+.nval{font-variant-numeric:tabular-nums;color:var(--accent);font-weight:700}
+.sel-list{margin:14px 0 0;padding:0;list-style:none;font-size:14px}
+.sel-list li{display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-bottom:1px dashed var(--line)}
+.sel-list li span:last-child{color:var(--muted);font-variant-numeric:tabular-nums}
+.means{margin-top:14px;font-size:13.5px;color:var(--muted)}
+.means b{color:var(--fg)}
+#plot{width:100%;height:auto;background:var(--surface);border:1px solid var(--line);border-radius:12px}
+#plot text{font-family:Inter,sans-serif;font-size:11px;fill:var(--muted)}
+#plot .lbl{fill:var(--fg);font-size:10px}
+#plot .axis{stroke:var(--line)}
+#plot .tick{stroke:var(--line);stroke-dasharray:2 3}
+.tip{position:fixed;pointer-events:none;background:var(--fg);color:var(--bg);font-size:12.5px;padding:6px 9px;border-radius:7px;opacity:0;transition:opacity .1s;z-index:30}
+/* code */
+pre{background:var(--code-bg);color:var(--code-fg);padding:16px 18px;border-radius:12px;overflow-x:auto;font-size:13.5px;line-height:1.55;position:relative;margin:10px 0}
+pre .c{color:#7d8ea3}
+.copy{position:absolute;top:8px;right:8px;background:rgba(255,255,255,.08);color:var(--code-fg);border:1px solid rgba(255,255,255,.15);border-radius:6px;font:12px Inter,sans-serif;padding:3px 8px;cursor:pointer}
+footer{padding:40px 0 60px;color:var(--muted);font-size:14px}
+footer .wrap{display:flex;flex-wrap:wrap;gap:24px;justify-content:space-between}
+.katex-display{margin:.7em 0}
+@media (max-width:600px){header.hero{padding:48px 0 32px} section{padding:46px 0}}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap">
+    <a class="brand" href="#top">PGW<span>·</span>ModelLevels<span>·</span>WRF</a>
+    <div class="links">
+      <a href="#how">How it works</a>
+      <a href="#physics">Perturbation</a>
+      <a href="#surface">Surface file</a>
+      <a href="#selection">Model selection</a>
+      <a href="#example">Example</a>
+      <a href="#verification">Verification</a>
+      <a href="#start">Quick start</a>
+    </div>
+    <button class="theme-btn" id="themeBtn" aria-label="Toggle color theme">◐</button>
+  </div>
+</nav>
+
+
+<header class="hero" id="top">
+  <div class="wrap">
+    <span class="eyebrow">WRF · WPS · IFS/ERA5 hybrid levels · CMIP6</span>
+    <h1>Multi-model pseudo-global warming for WRF input on model levels</h1>
+    <p class="lede">Perturbs the IFS/ERA5 model-level and surface GRIB files that WPS reads for WRF with monthly CMIP6 climate deltas. One job produces X+1 ready-to-use input sets per scenario, one per CMIP6 model plus their ensemble mean, with a surface file that stays consistent with the adjusted model levels.</p>
+    <div class="btns">
+      <a class="btn primary" href="https://github.com/ccalvosa/pgw_workflow_ModelLevels_WRF">
+        <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+        View on GitHub</a>
+      <a class="btn" href="latex/pgw_wrf_modellevels_technical_note.pdf">📄 Technical note (PDF)</a>
+      <a class="btn" href="https://ccalvosa.github.io/pgw_workflow_ModelLevels/">↔ HARMONIE version</a>
+      <a class="btn" href="#start">⚡ Quick start</a>
+    </div>
+    <div class="stats">
+      <div class="stat"><b>137</b><span>IFS/ERA5 hybrid levels, no vertical reinterpolation</span></div>
+      <div class="stat"><b>2 files</b><span>model levels and surface, perturbed consistently</span></div>
+      <div class="stat"><b>X + 1</b><span>members per scenario: models + ENSMEAN</span></div>
+      <div class="stat"><b>~2 GB</b><span>per process for 401×401×137, columns in blocks</span></div>
+    </div>
+  </div>
+</header>
+
+<section id="how">
+  <div class="wrap">
+    <h2>How it works</h2>
+    <p class="sub">A single SLURM job runs four steps. The model-level files are perturbed first, and the state of their lowest level drives the perturbation of the surface file, because WPS derives the pressure of the model levels from the surface pressure of that file.</p>
+
+    <svg class="pipeline" viewBox="0 0 1080 210" role="img" aria-label="Workflow: inputs, step 01, step 02A, step 02B, steps 03-04">
+      <defs>
+        <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker>
+      </defs>
+      <g stroke="var(--line)" stroke-width="1.5">
+        <rect x="8" y="40" width="140" height="50" rx="10" fill="var(--surface-2)"/>
+        <rect x="8" y="112" width="140" height="50" rx="10" fill="var(--surface-2)"/>
+        <rect x="190" y="60" width="180" height="84" rx="12" fill="color-mix(in srgb,var(--accent-2) 12%,var(--surface))"/>
+        <rect x="410" y="60" width="180" height="84" rx="12" fill="color-mix(in srgb,var(--accent-2) 12%,var(--surface))"/>
+        <rect x="630" y="60" width="190" height="84" rx="12" fill="color-mix(in srgb,var(--accent) 14%,var(--surface))"/>
+        <rect x="860" y="60" width="200" height="84" rx="12" fill="color-mix(in srgb,var(--ok) 12%,var(--surface))"/>
+        <rect x="640" y="4" width="170" height="36" rx="8" fill="var(--surface-2)"/>
+        <rect x="430" y="166" width="140" height="38" rx="8" fill="var(--surface-2)"/>
+      </g>
+      <g stroke="var(--muted)" stroke-width="1.6" fill="none" marker-end="url(#ah)">
+        <path d="M148 65 C170 65 170 88 188 88"/>
+        <path d="M148 137 C170 137 170 116 188 116"/>
+        <path d="M370 102 H408"/>
+        <path d="M590 102 H628"/>
+        <path d="M820 102 H858"/>
+        <path d="M725 40 V58"/>
+        <path d="M500 144 V164"/>
+        <path d="M570 185 C640 185 700 175 715 146"/>
+      </g>
+      <text x="78" y="62" text-anchor="middle" font-weight="600" font-size="13">ECMWF_PL_*</text>
+      <text x="78" y="79" text-anchor="middle" class="muted" font-size="11.5">model levels</text>
+      <text x="78" y="134" text-anchor="middle" font-weight="600" font-size="13">CMIP6 deltas</text>
+      <text x="78" y="151" text-anchor="middle" class="muted" font-size="11.5">scenario / model</text>
+      <text x="280" y="88" text-anchor="middle" font-weight="700" font-size="15">Step 01</text>
+      <text x="280" y="108" text-anchor="middle" class="muted" font-size="12">select · regrid</text>
+      <text x="280" y="125" text-anchor="middle" class="muted" font-size="12">ensemble mean</text>
+      <text x="500" y="88" text-anchor="middle" font-weight="700" font-size="15">Step 02A</text>
+      <text x="500" y="108" text-anchor="middle" class="muted" font-size="12">model levels</text>
+      <text x="500" y="125" text-anchor="middle" class="muted" font-size="12">T, q, ps (blocks)</text>
+      <text x="725" y="88" text-anchor="middle" font-weight="700" font-size="15">Step 02B</text>
+      <text x="725" y="108" text-anchor="middle" class="muted" font-size="12">surface file</text>
+      <text x="725" y="125" text-anchor="middle" class="muted" font-size="12">sp, msl, 2t, 2d, SST</text>
+      <text x="960" y="88" text-anchor="middle" font-weight="700" font-size="15">Steps 03–04</text>
+      <text x="960" y="108" text-anchor="middle" class="muted" font-size="12">integrity · verification</text>
+      <text x="960" y="125" text-anchor="middle" class="muted" font-size="12">HTML report</text>
+      <text x="725" y="27" text-anchor="middle" font-weight="600" font-size="12.5">ECMWF_SFC* (all times)</text>
+      <text x="500" y="190" text-anchor="middle" class="muted" font-size="12">_state: ps, ps′, T<tspan font-size="9" dy="3">L</tspan></text>
+    </svg>
+
+    <div class="grid4">
+      <div class="card"><div class="step">Step 01</div><h4>Scenarios and models</h4>
+        <p>Resolves the scenarios and the attribution year (closest available year if needed), excludes incomplete models, selects X models and interpolates each variable from its own GCM grid to the WPS input grid. Builds the ENSMEAN.</p></div>
+      <div class="card"><div class="step">Step 02A</div><h4>Model levels</h4>
+        <p>Applies ΔT and ΔRH at the original pressure of each hybrid level and adjusts surface pressure hydrostatically, in blocks of columns. Saves the state of the lowest level for each time.</p></div>
+      <div class="card"><div class="step">Step 02B</div><h4>Surface file</h4>
+        <p>Perturbs sp, msl, 2-m temperature and dewpoint, skin, sea and soil temperatures with the state of the model levels at the same time, so that calc_ecmwf_p and metgrid see a consistent atmosphere.</p></div>
+      <div class="card"><div class="step">Steps 03–04</div><h4>Integrity and verification</h4>
+        <p>Checks messages, metadata and untouched fields, then recomputes the expected change of every 3D and surface field and writes a self-contained HTML report.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="physics">
+  <div class="wrap">
+    <h2>The perturbation on model levels</h2>
+    <p class="sub">Identical to the HARMONIE workflow, following PGW4ERA5 (Brogli et al., 2023): deltas applied at the original pressures of the model levels, without vertical reinterpolation of the driving fields.</p>
+    <div class="grid2">
+      <div>
+        <h3>1 · Vertical interpolation with a surface anchor</h3>
+        <div class="eq">$$\Delta(p)=\Delta_{\rm std}(p)+\big[\Delta_{\rm sfc}-\Delta_{\rm std}(p_s)\big]\max\!\Big(0,\,1-\frac{p_s-p}{D}\Big)$$</div>
+        <h3>2 · Temperature and humidity</h3>
+        <div class="eq">$$T'=T+\Delta T,\qquad \mathrm{RH}'=\min\!\big[\max(\mathrm{RH}+\Delta\mathrm{RH},\,0.5\,\mathrm{RH}),\,\max(\mathrm{RH},1)\big]$$</div>
+        <p>The change in q fades out between 150 and 100 hPa, so stratospheric water vapor is not modified.</p>
+        <h3>3 · Hydrostatic surface pressure</h3>
+        <div class="eq">$$p_s\leftarrow p_s-0.95\,\frac{p_s}{R_d T'_L}\Big(\big[\Phi'-\Phi\big]_{300}-g\,\Delta z_g\Big)$$</div>
+        <h3>4 · Columns in blocks</h3>
+        <p>Each column is independent, so the domain is processed in blocks of 20&nbsp;000 columns. For a 401×401×137 domain the peak memory drops from about 4 to 1.9 GB per process, with identical results.</p>
+      </div>
+      <figure>
+        <img src="figures/profiles_Future_ssp585.png" alt="Domain-mean profiles of applied ΔT, ΔRH and Δq/q for five CMIP6 models and their ensemble mean, ssp585, Ophelia domain" loading="lazy">
+        <figcaption>Domain-mean profiles of the applied ΔT, ΔRH and relative change in q (ratio of domain means) for the ssp585 scenario over the Ophelia domain. Thin lines are five CMIP6 models, the thick black line the ENSMEAN, the gray band ±1σ between models, and dashed red lines the expected ΔT and the unbounded target ΔRH.</figcaption>
+        <div class="note">The design is conditional: it evaluates how the imposed thermodynamic perturbation modifies an event with the same synoptic evolution. It does not estimate changes in event probability or circulation. The wind is not perturbed by default.</div>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<section id="surface">
+  <div class="wrap">
+    <h2>A surface file consistent with the model levels</h2>
+    <p class="sub">WPS computes the pressure and height of the model levels in <code>calc_ecmwf_p</code> from <b>PSFC</b>, the surface pressure of the surface file, and metgrid/real use PMSL, 2-m temperature and dewpoint. Each time of the surface file is perturbed with the state of the adjusted model levels at the same time.</p>
+    <div class="tbl" style="margin-bottom:22px"><table>
+      <thead><tr><th>Field</th><th>Perturbation</th><th>Why</th></tr></thead>
+      <tbody>
+        <tr><td>sp</td><td>$$sp'=sp\cdot p_s'/p_s$$</td><td>sp and exp(lnsp) are different fields in ERA5 (up to ~650 Pa apart locally), so the relative change is applied</td></tr>
+        <tr><td>msl</td><td>$$msl'=msl\,\frac{p_s'}{p_s}\exp\!\Big[\frac{\Phi_s}{R_d}\Big(\frac{1}{\bar T'}-\frac{1}{\bar T}\Big)\Big]$$</td><td>hydrostatic reduction with the standard lapse rate; equals sp′/sp over the sea</td></tr>
+        <tr><td>2t</td><td>$$2t'=2t+(T_L'-T_L)$$</td><td>ΔT of the lowest model level, tied to Δtas by the surface anchor</td></tr>
+        <tr><td>2d</td><td>$$2d'=T_d\big(\mathrm{RH}_2'\,e_w(2t')\big),\ \ \mathrm{RH}_2'=\mathrm{RH}_2+\Delta\mathrm{hurs}$$</td><td>2-m relative humidity plus Δhurs, bounded as in 3D</td></tr>
+        <tr><td>skt, sst, stl1–4</td><td>open-sea ΔSST; soil Δts damped with depth</td><td>as in the HARMONIE workflow</td></tr>
+        <tr><td>10u, 10v</td><td>+Δu<sub>L</sub>, Δv<sub>L</sub></td><td>only when the wind is perturbed</td></tr>
+      </tbody>
+    </table></div>
+    <figure>
+      <img src="figures/surface_Future_ssp585_ENSMEAN.png" alt="Maps of ENSMEAN changes of sp, msl, 2t, 2d and SST for ssp585 over the Ophelia domain" loading="lazy">
+      <figcaption id="sfcCaption">ENSMEAN changes of the WPS surface file for ssp585 at 00 UTC on 7 October 2017 (domain means: Δsp +16.3 Pa, Δmsl +15.9 Pa, Δ2t +3.98 K, Δ2d +4.03 K, ΔSST +3.82 K). Over the ocean Δmsl follows Δsp, and the 2-m dewpoint rises with the 2-m temperature because the 2-m relative humidity changes only by Δhurs.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section id="selection">
+  <div class="wrap">
+    <h2>Automatic model selection, live</h2>
+    <p class="sub">Each model is described by three domain-mean features on its native grid: ΔT between 850 and 300 hPa, Δtas and ΔRH between 850 and 500 hPa. This demo runs the package algorithm on the real features of the 30 models available for the Ophelia domain (October; attribution deltas of 2020, the closest available year, and ssp585).</p>
+    <div class="demo">
+      <div class="ctrl card">
+        <label for="nRange">Number of models, N = <span class="nval" id="nVal">5</span></label>
+        <input type="range" id="nRange" min="1" max="15" value="5">
+        <label>Method</label>
+        <div class="seg" role="group" aria-label="Selection method">
+          <button id="mSpread" aria-pressed="true">spread</button>
+          <button id="mRepr" aria-pressed="false">representative</button>
+        </div>
+        <label for="basis">Features used</label>
+        <select id="basis">
+          <option value="both" selected>Both scenarios (COMMON_MODELS)</option>
+          <option value="Attribution_ssp245">Attribution only</option>
+          <option value="Future_ssp585">ssp585 only</option>
+        </select>
+        <label for="view">Scenario shown</label>
+        <select id="view">
+          <option value="Attribution_ssp245">Attribution (2020)</option>
+          <option value="Future_ssp585" selected>ssp585</option>
+        </select>
+        <ol class="sel-list" id="selList"></ol>
+        <div class="means" id="means"></div>
+      </div>
+      <div>
+        <svg id="plot" viewBox="0 0 640 440" role="img" aria-label="Scatter of model features with selected models highlighted"></svg>
+        <p class="means"><b>spread</b> starts from the model closest to the multi-model mean and adds, one by one, the model farthest from those already chosen. <b>representative</b> takes the N models closest to the mean. ★ marks the mean of the selected models (the ENSMEAN) and ☆ the mean of all candidates.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="example">
+  <div class="wrap">
+    <h2>Example: Hurricane Ophelia, 7 October 2017</h2>
+    <p class="sub">ERA5 input for WPS on a 401×401 grid at 0.1° (10–50°N, 60–20°W), files valid at 00 and 06 UTC on 7 October 2017. The job ran on SLURM with 8 processes in 13.5 minutes. Attribution (deltas of 2020) and ssp585, five models selected automatically plus the ENSMEAN: 12 sets of WPS input files.</p>
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" aria-selected="true" data-p="p1">Scenario profiles</button>
+      <button class="tab" role="tab" aria-selected="false" data-p="p2">Maps</button>
+      <button class="tab" role="tab" aria-selected="false" data-p="p3">Selection</button>
+      <button class="tab" role="tab" aria-selected="false" data-p="p4">Domain means</button>
+    </div>
+    <div class="panel" id="p1"><figure><img src="figures/scenarios.png" alt="ENSMEAN profiles of ΔT, ΔRH and Δq/q for attribution and ssp585, Ophelia domain" loading="lazy">
+      <figcaption id="cap1">ENSMEAN profiles for attribution (blue) and ssp585 (orange), with ±1σ between models for ΔT. Specific humidity at 850 hPa changes by −8.3 % and +30.0 % (ratio of domain means), that is 5.5 and 6.2 % per kelvin of the domain-mean ΔT at that level.</figcaption></figure></div>
+    <div class="panel" id="p2" hidden><figure><img src="figures/maps_Future_ssp585.png" alt="Maps of ENSMEAN ΔT, intermodel spread, Δps and ΔSST for ssp585" loading="lazy">
+      <figcaption>ssp585: ENSMEAN ΔT at the lowest model level, intermodel standard deviation of that ΔT, ENSMEAN Δps and ENSMEAN ΔSST over the sea (grid indices, north up).</figcaption></figure></div>
+    <div class="panel" id="p3" hidden><figure><img src="figures/selection_Future_ssp585.png" alt="Domain features of 30 candidate models with the five selected highlighted, ssp585" loading="lazy">
+      <figcaption>Domain features of the 30 candidates in the ssp585 scenario, with the five models selected on the features of both scenarios.</figcaption></figure></div>
+    <div class="panel" id="p4" hidden>
+      <div class="tbl"><table>
+        <thead><tr><th>Scenario</th><th>Member</th><th>ΔT 850 (K)</th><th>ΔT 500 (K)</th><th>ΔRH 850 (%)</th><th>Δps (Pa)</th><th>ΔSST (K)</th></tr></thead>
+        <tbody id="meansBody"></tbody>
+      </table></div>
+    </div>
+  </div>
+</section>
+
+<section id="verification">
+  <div class="wrap">
+    <h2>Verification</h2>
+    <p class="sub">Every perturbed field is checked against its expected change, in GRIB packing units (p.u. = 2<sup>E</sup>·10<sup>−D</sup>). For sp, msl, 2t and 2d the tolerance adds the error propagated from the packed fields they depend on. All checks passed for the 12 members of the example.</p>
+    <div class="grid2">
+      <div class="tbl"><table>
+        <thead><tr><th>Check</th><th>Tolerance</th><th>Example (worst)</th></tr></thead>
+        <tbody id="verifBody"></tbody>
+      </table></div>
+      <figure>
+        <img src="figures/member_Future_ssp585_ENSMEAN.png" alt="Verification panel of the ssp585 ENSMEAN member" loading="lazy">
+        <figcaption>Verification of the ssp585 ENSMEAN: applied versus expected profiles and scatter (top), Δps, ΔT error at the lowest level, Δz<sub>g</sub> error at 300 hPa and ΔSST (bottom).</figcaption>
+      </figure>
+    </div>
+    <div class="note">The verification found two issues during development: a model with staggered 3D and 2D grids (ACCESS-ESM1-5) regridded with the wrong grid, now fixed, and negative q values that ERA5 already contains or that GRIB packing creates below one packing unit, now accounted for.</div>
+  </div>
+</section>
+
+<section id="start">
+  <div class="wrap">
+    <h2>Quick start</h2>
+    <p class="sub">Set the scenarios, models and file patterns at the top of <code>run_PGW_WRF_ML.sh</code> and submit one job.</p>
+    <div class="grid2">
+      <div>
+<pre><button class="copy">copy</button><span class="c"># configuration (top of run_PGW_WRF_ML.sh)</span>
+SCENARIOS="Attribution_ssp245 Future_ssp585"
+ATTRIB_YEAR=auto       <span class="c"># closest available year</span>
+MODELS=auto            <span class="c"># "EC-Earth3 MIROC6 ..." | all | auto</span>
+N_MODELS=5
+ML_PATTERN='ECMWF_PL_*.grb'
+SFC_PATTERN='ECMWF_SFC*.grb'
+CHUNK=20000            <span class="c"># columns per block</span></pre>
+<pre><button class="copy">copy</button>sbatch run_PGW_WRF_ML.sh \
+    &lt;path_input&gt; &lt;path_output&gt; &lt;cmip_root&gt; &lt;month|auto&gt;</pre>
+        <p class="means">Then run WPS (ungrib, <code>calc_ecmwf_p</code>, metgrid) on <code>&lt;path_output&gt;/&lt;SCENARIO&gt;/&lt;MEMBER&gt;/</code> with the same Vtables and <code>ecmwf_coeffs</code>, and open <code>verification/report.html</code>.</p>
+      </div>
+<pre class="mono"><span class="c">&lt;path_output&gt;/</span>
+├── _deltas/
+│   ├── members.json
+│   └── &lt;SCENARIO&gt;/&lt;MODEL|ENSMEAN&gt;/deltas_on_grid.nc
+├── Future_ssp585/
+│   ├── CanESM5/
+│   │   ├── ECMWF_PL_20171007_00.grb
+│   │   ├── ...
+│   │   └── ECMWF_SFC_SPs.grb
+│   └── ENSMEAN/ ...
+├── Attribution_ssp245/ ...
+└── verification/
+    ├── report.html
+    └── metrics.csv</pre>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div>
+      <b style="color:var(--fg)">Carlos Calvo-Sancho</b><br>
+      Centro de Investigaciones sobre Desertificación (CIDE, CSIC-UV-GVA)<br>
+      Climate, Atmosphere and Ocean Laboratory (Climatoc-Lab), Moncada, Valencia, Spain
+    </div>
+    <div>
+      Method: Brogli et al. (2023), <a href="https://doi.org/10.5194/gmd-16-907-2023">GMD 16, 907–926</a><br>
+      Code released under the <a href="https://github.com/ccalvosa/pgw_workflow_ModelLevels_WRF/blob/main/LICENSE">MIT license</a><br>
+      <a href="https://github.com/ccalvosa/pgw_workflow_ModelLevels_WRF">github.com/ccalvosa/pgw_workflow_ModelLevels_WRF</a>
+    </div>
+  </div>
+</footer>
+
+<div class="tip" id="tip"></div>
+
+<script>
+/* ── theme ─────────────────────────────────────────────────────────── */
+(function(){
+  const root=document.documentElement, btn=document.getElementById('themeBtn');
+  try{const t=localStorage.getItem('pgw-theme'); if(t) root.dataset.theme=t;}catch(e){}
+  btn.addEventListener('click',()=>{
+    const dark = root.dataset.theme ? root.dataset.theme==='dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+    root.dataset.theme = dark ? 'light' : 'dark';
+    try{localStorage.setItem('pgw-theme',root.dataset.theme);}catch(e){}
+    draw();
+  });
+})();
+
+/* ── KaTeX ─────────────────────────────────────────────────────────── */
+document.addEventListener('DOMContentLoaded',()=>{
+  if(window.renderMathInElement) renderMathInElement(document.body,{delimiters:[{left:'$$',right:'$$',display:true}]});
+});
+window.addEventListener('load',()=>{
+  if(window.renderMathInElement) renderMathInElement(document.body,{delimiters:[{left:'$$',right:'$$',display:true}]});
+});
+
+/* ── tabs ──────────────────────────────────────────────────────────── */
+document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.setAttribute('aria-selected',x===t));
+  document.querySelectorAll('.panel').forEach(p=>p.hidden = p.id!==t.dataset.p);
+}));
+
+/* ── copy buttons ──────────────────────────────────────────────────── */
+document.querySelectorAll('.copy').forEach(b=>b.addEventListener('click',()=>{
+  const txt=b.parentElement.innerText.replace(/^copy\n?/,'');
+  navigator.clipboard && navigator.clipboard.writeText(txt).then(()=>{b.textContent='copied';setTimeout(()=>b.textContent='copy',1200);});
+}));
+
+/* ── domain-mean table ─────────────────────────────────────────────── */
+const MEANS=[
+ ["Attribution (2020)","ACCESS-ESM1-5",-1.36,-1.65,0.28,41.3,-1.02],
+ ["","EC-Earth3-Veg",-2.17,-2.56,-1.53,26.0,-1.92],
+ ["","GISS-E2-2-G",-0.35,-0.54,1.28,-17.5,-0.03],
+ ["","CanESM5",-2.12,-2.61,0.52,-59.7,-1.44],
+ ["","HadGEM3-GC31-LL",-1.58,-1.45,2.44,-38.6,-1.10],
+ ["","ENSMEAN",-1.52,-1.76,0.61,-9.4,-1.10],
+ ["ssp585","ACCESS-ESM1-5",4.18,4.92,-2.24,39.3,3.34],
+ ["","EC-Earth3-Veg",4.68,5.50,1.36,42.7,4.26],
+ ["","GISS-E2-2-G",3.28,4.09,-3.53,14.0,1.69],
+ ["","CanESM5",6.07,7.64,0.11,-68.1,5.18],
+ ["","HadGEM3-GC31-LL",5.92,5.91,-7.54,53.4,4.61],
+ ["","ENSMEAN",4.82,5.61,-2.35,17.0,3.82]];
+document.getElementById('meansBody').innerHTML = MEANS.map(r=>{
+  const f=(v,d)=>`<td class="num ${v<0?'neg':'pos'}">${v>0?'+':''}${v.toFixed(d)}</td>`;
+  return `<tr class="${r[1]==='ENSMEAN'?'ens':''}"><td>${r[0]}</td><td>${r[1]}</td>${f(r[2],2)}${f(r[3],2)}${f(r[4],2)}${f(r[5],1)}${f(r[6],2)}</tr>`;
+}).join('');
+
+const VERIF=[
+ ["Replica of T, skt, sst, stl1–4","≤ 1 p.u.","0.50 p.u."],
+ ["Replica of q","≤ 1 p.u.","0.57 p.u."],
+ ["sp, msl (relative change, hydrostatic msl)","rounding + propagated","0.22 / 0.13 Pa"],
+ ["2t, 2d","rounding + propagated","4.6·10⁻⁴ / 4.9·10⁻⁴ K"],
+ ["ΔT, independent interpolation (300 columns)","≤ 10⁻³ K","4.9·10⁻⁴ K"],
+ ["Δz<sub>g</sub> at 300 hPa vs GCM target","≤ 0.25 m","2.4 cm"],
+ ["ΔRH troposphere / RH₂ (RMSE)","≤ 0.5 %","0.0014 / 0.0010 %"],
+ ["Stratospheric q unchanged","≤ 1 p.u.","0 p.u."],
+ ["Regridding vs xarray.interp (incl. ACCESS-ESM1-5)","≤ 0.02 K","5·10⁻⁷ K"],
+ ["ENSMEAN ΔT vs mean of models","≤ 0.01 K","6.8·10⁻⁴ K"]];
+document.getElementById('verifBody').innerHTML = VERIF.map(r=>`<tr><td>${r[0]}</td><td>${r[1]}</td><td class="num pass">${r[2]}</td></tr>`).join('');
+
+/* ── model selection demo (same algorithm as pgw_ml/ensemble.py) ───── */
+const FEAT={"Attribution_ssp245":{"ACCESS-CM2":{"dT_trop":-1.450143,"dtas":-0.977695,"dRH":1.45698},"ACCESS-ESM1-5":{"dT_trop":-1.60427,"dtas":-1.083672,"dRH":0.225009},"CAS-ESM2-0":{"dT_trop":-1.08218,"dtas":-0.88076,"dRH":0.666353},"CESM2":{"dT_trop":-1.66161,"dtas":-0.962256,"dRH":1.184159},"CESM2-WACCM":{"dT_trop":-1.64903,"dtas":-1.021372,"dRH":1.244045},"CMCC-CM2-SR5":{"dT_trop":-1.743124,"dtas":-1.125974,"dRH":0.416373},"CMCC-ESM2":{"dT_trop":-1.567021,"dtas":-0.827988,"dRH":0.540282},"CNRM-CM6-1":{"dT_trop":-1.324413,"dtas":-0.850486,"dRH":0.41126},"CNRM-CM6-1-HR":{"dT_trop":-1.673669,"dtas":-1.240636,"dRH":0.260855},"CNRM-ESM2-1":{"dT_trop":-1.503376,"dtas":-0.908473,"dRH":0.184835},"CanESM5":{"dT_trop":-2.586698,"dtas":-1.506636,"dRH":0.936654},"CanESM5-1":{"dT_trop":-2.633664,"dtas":-1.660346,"dRH":0.463789},"CanESM5-CanOE":{"dT_trop":-2.631929,"dtas":-1.597902,"dRH":0.445707},"EC-Earth3":{"dT_trop":-1.896661,"dtas":-1.362071,"dRH":-0.915909},"EC-Earth3-CC":{"dT_trop":-2.068251,"dtas":-1.663075,"dRH":-1.035022},"EC-Earth3-Veg":{"dT_trop":-2.471315,"dtas":-1.998928,"dRH":-1.024439},"EC-Earth3-Veg-LR":{"dT_trop":-1.869294,"dtas":-1.506995,"dRH":-0.125091},"FGOALS-f3-L":{"dT_trop":-1.483695,"dtas":-0.98352,"dRH":1.009875},"FGOALS-g3":{"dT_trop":-1.609752,"dtas":-1.014815,"dRH":0.376537},"FIO-ESM-2-0":{"dT_trop":-1.819134,"dtas":-0.977847,"dRH":1.321403},"GFDL-CM4":{"dT_trop":-1.662698,"dtas":-1.04196,"dRH":-0.563376},"GFDL-ESM4":{"dT_trop":-1.489322,"dtas":-0.910652,"dRH":-0.263471},"GISS-E2-1-G":{"dT_trop":-1.751803,"dtas":-1.049601,"dRH":0.252114},"GISS-E2-1-H":{"dT_trop":-1.498597,"dtas":-0.904034,"dRH":0.287419},"GISS-E2-2-G":{"dT_trop":-0.515463,"dtas":-0.127028,"dRH":0.62682},"HadGEM3-GC31-LL":{"dT_trop":-1.527425,"dtas":-1.173024,"dRH":1.452749},"IITM-ESM":{"dT_trop":-1.654602,"dtas":-0.999601,"dRH":0.041309},"INM-CM4-8":{"dT_trop":-1.438554,"dtas":-0.749182,"dRH":1.464211},"INM-CM5-0":{"dT_trop":-1.411704,"dtas":-0.939551,"dRH":1.324018},"IPSL-CM6A-LR":{"dT_trop":-2.053075,"dtas":-1.464675,"dRH":-0.408182}},"Future_ssp585":{"ACCESS-CM2":{"dT_trop":5.770051,"dtas":4.099038,"dRH":-3.844328},"ACCESS-ESM1-5":{"dT_trop":4.820834,"dtas":3.448207,"dRH":-2.28695},"CAS-ESM2-0":{"dT_trop":5.459586,"dtas":3.513583,"dRH":-1.402996},"CESM2":{"dT_trop":5.445555,"dtas":3.220545,"dRH":-3.490513},"CESM2-WACCM":{"dT_trop":5.420523,"dtas":3.255588,"dRH":-3.217503},"CMCC-CM2-SR5":{"dT_trop":5.407838,"dtas":4.062764,"dRH":-0.551022},"CMCC-ESM2":{"dT_trop":5.162313,"dtas":3.700633,"dRH":-1.752707},"CNRM-CM6-1":{"dT_trop":5.805169,"dtas":3.959069,"dRH":-0.445524},"CNRM-CM6-1-HR":{"dT_trop":5.78217,"dtas":3.963659,"dRH":-0.324393},"CNRM-ESM2-1":{"dT_trop":5.269622,"dtas":3.469741,"dRH":-0.38295},"CanESM5":{"dT_trop":7.400288,"dtas":5.097655,"dRH":-2.209461},"CanESM5-1":{"dT_trop":7.279924,"dtas":4.9693,"dRH":-2.635403},"CanESM5-CanOE":{"dT_trop":7.554492,"dtas":5.28079,"dRH":-2.049403},"EC-Earth3":{"dT_trop":5.784077,"dtas":4.586802,"dRH":1.256201},"EC-Earth3-CC":{"dT_trop":5.271927,"dtas":4.205895,"dRH":0.846964},"EC-Earth3-Veg":{"dT_trop":5.50627,"dtas":4.277302,"dRH":1.176781},"EC-Earth3-Veg-LR":{"dT_trop":5.425453,"dtas":4.112059,"dRH":0.872831},"FGOALS-f3-L":{"dT_trop":3.957823,"dtas":2.711861,"dRH":-2.381259},"FGOALS-g3":{"dT_trop":3.332179,"dtas":1.613739,"dRH":-2.137437},"FIO-ESM-2-0":{"dT_trop":4.422742,"dtas":2.673799,"dRH":-3.593829},"GFDL-CM4":{"dT_trop":5.091914,"dtas":3.705861,"dRH":-0.1977},"GFDL-ESM4":{"dT_trop":3.777279,"dtas":2.528377,"dRH":-0.275444},"GISS-E2-1-G":{"dT_trop":4.901539,"dtas":2.458505,"dRH":-2.747344},"GISS-E2-1-H":{"dT_trop":4.476231,"dtas":3.029546,"dRH":-0.165176},"GISS-E2-2-G":{"dT_trop":3.945046,"dtas":2.015589,"dRH":-2.292448},"HadGEM3-GC31-LL":{"dT_trop":6.141206,"dtas":4.630546,"dRH":-4.884551},"IITM-ESM":{"dT_trop":3.168999,"dtas":2.072085,"dRH":-0.498422},"INM-CM4-8":{"dT_trop":3.691031,"dtas":2.411908,"dRH":-0.615772},"INM-CM5-0":{"dT_trop":3.556646,"dtas":2.49538,"dRH":-0.657679},"IPSL-CM6A-LR":{"dT_trop":6.191341,"dtas":4.434475,"dRH":-0.555113}}};
+const KEYS=["dT_trop","dtas","dRH"];
+
+function selectModels(n,method,basis){
+  const scen = basis==='both' ? Object.keys(FEAT) : [basis];
+  const names = Object.keys(FEAT[scen[0]]).sort();          // same order as Python sorted()
+  const cols = [];
+  scen.forEach(s=>KEYS.forEach(k=>cols.push([s,k])));
+  cols.sort((a,b)=>(`${a[0]}:${a[1]}`<`${b[0]}:${b[1]}`?-1:1)); // sorted feature keys
+  const X = names.map(m=>cols.map(([s,k])=>FEAT[s][m][k]));
+  const nf=cols.length, mu=[], sd=[];
+  for(let j=0;j<nf;j++){
+    const c=X.map(r=>r[j]); const m=c.reduce((a,b)=>a+b,0)/c.length;
+    let v=Math.sqrt(c.reduce((a,b)=>a+(b-m)**2,0)/c.length); if(v===0) v=1;
+    mu.push(m); sd.push(v);
+  }
+  const Z=X.map(r=>r.map((v,j)=>(v-mu[j])/sd[j]));
+  const norm=r=>Math.sqrt(r.reduce((a,b)=>a+b*b,0));
+  const dist=(a,b)=>Math.sqrt(a.reduce((s,v,i)=>s+(v-b[i])**2,0));
+  const d=Z.map(norm);
+  if(n>=names.length) return names.slice();
+  let idx=[];
+  if(method==='representative'){
+    idx=d.map((v,i)=>[v,i]).sort((a,b)=>a[0]-b[0]).slice(0,n).map(x=>x[1]);
+  } else {
+    let first=0; d.forEach((v,i)=>{ if(v<d[first]) first=i; }); idx=[first];
+    while(idx.length<n){
+      let best=-1,bd=-Infinity;
+      Z.forEach((z,i)=>{ if(idx.includes(i)) return;
+        const m=Math.min(...idx.map(s=>dist(z,Z[s]))); if(m>bd){bd=m;best=i;} });
+      idx.push(best);
+    }
+  }
+  return idx.map(i=>names[i]);
+}
+
+const st={n:5,method:'spread',basis:'both',view:'Future_ssp585'};
+const svg=document.getElementById('plot'), tip=document.getElementById('tip');
+const css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+
+function draw(){
+  const sel=selectModels(st.n,st.method,st.basis);
+  const F=FEAT[st.view], names=Object.keys(F);
+  const W=640,H=440,L=58,R=18,T=18,B=48;
+  const xs=names.map(m=>F[m].dT_trop), ys=names.map(m=>F[m].dRH);
+  const pad=(a)=>{const lo=Math.min(...a),hi=Math.max(...a),p=(hi-lo)*0.1;return[lo-p,hi+p];};
+  const [x0,x1]=pad(xs),[y0,y1]=pad(ys);
+  const sx=v=>L+(v-x0)/(x1-x0)*(W-L-R), sy=v=>H-B-(v-y0)/(y1-y0)*(H-T-B);
+  const ticks=(a,b,n)=>{const s=(b-a)/n,p=Math.pow(10,Math.floor(Math.log10(s)));const st=[1,2,2.5,5,10].map(k=>k*p).find(k=>k>=s);const o=[];for(let v=Math.ceil(a/st)*st;v<=b+1e-9;v+=st)o.push(+v.toFixed(6));return o;};
+  let h='';
+  ticks(x0,x1,6).forEach(v=>{h+=`<line class="tick" x1="${sx(v)}" x2="${sx(v)}" y1="${T}" y2="${H-B}"/><text x="${sx(v)}" y="${H-B+16}" text-anchor="middle">${v}</text>`;});
+  ticks(y0,y1,6).forEach(v=>{h+=`<line class="tick" x1="${L}" x2="${W-R}" y1="${sy(v)}" y2="${sy(v)}"/><text x="${L-8}" y="${sy(v)+4}" text-anchor="end">${v}</text>`;});
+  h+=`<rect class="axis" x="${L}" y="${T}" width="${W-L-R}" height="${H-T-B}" fill="none"/>`;
+  h+=`<text x="${(L+W-R)/2}" y="${H-10}" text-anchor="middle">ΔT 850–300 hPa (K)</text>`;
+  h+=`<text transform="translate(16 ${(T+H-B)/2}) rotate(-90)" text-anchor="middle">ΔRH 850–500 hPa (%)</text>`;
+  const accent=css('--warm'), gray=css('--muted');
+  names.forEach(m=>{
+    const s=sel.includes(m);
+    h+=`<circle data-m="${m}" cx="${sx(F[m].dT_trop)}" cy="${sy(F[m].dRH)}" r="${s?7:5}" fill="${s?accent:gray}" fill-opacity="${s?1:.45}" stroke="${s?css('--fg'):'none'}" stroke-width="1.2"/>`;
+    if(s) h+=`<text class="lbl" x="${sx(F[m].dT_trop)+9}" y="${sy(F[m].dRH)-7}">${m}</text>`;
+  });
+  const mean=(arr,k)=>arr.reduce((a,m)=>a+F[m][k],0)/arr.length;
+  const star=(x,y,fill,stroke)=>`<text x="${x}" y="${y+7}" text-anchor="middle" font-size="22" fill="${fill}" stroke="${stroke}" stroke-width=".8">★</text>`;
+  h+=star(sx(mean(names,'dT_trop')),sy(mean(names,'dRH')),'none',css('--fg'));
+  h+=star(sx(mean(sel,'dT_trop')),sy(mean(sel,'dRH')),accent,css('--fg'));
+  svg.innerHTML=h;
+  svg.querySelectorAll('circle').forEach(c=>{
+    c.addEventListener('mousemove',e=>{const m=c.dataset.m;tip.textContent=`${m}: ΔT ${F[m].dT_trop.toFixed(2)} K · Δtas ${F[m].dtas.toFixed(2)} K · ΔRH ${F[m].dRH.toFixed(2)} %`;tip.style.left=(e.clientX+12)+'px';tip.style.top=(e.clientY+12)+'px';tip.style.opacity=1;});
+    c.addEventListener('mouseleave',()=>tip.style.opacity=0);
+  });
+  document.getElementById('selList').innerHTML=sel.map((m,i)=>`<li><span>${i+1}. ${m}</span><span>${F[m].dT_trop>0?'+':''}${F[m].dT_trop.toFixed(2)} K</span></li>`).join('');
+  const f=(v,u)=>`${v>0?'+':''}${v.toFixed(2)} ${u}`;
+  document.getElementById('means').innerHTML=
+    `ENSMEAN of selected: <b>${f(mean(sel,'dT_trop'),'K')}</b>, <b>${f(mean(sel,'dRH'),'%')}</b><br>Mean of all ${names.length}: <b>${f(mean(names,'dT_trop'),'K')}</b>, <b>${f(mean(names,'dRH'),'%')}</b>`;
+}
+document.getElementById('nRange').addEventListener('input',e=>{st.n=+e.target.value;document.getElementById('nVal').textContent=st.n;draw();});
+[['mSpread','spread'],['mRepr','representative']].forEach(([id,m])=>document.getElementById(id).addEventListener('click',()=>{
+  st.method=m; document.getElementById('mSpread').setAttribute('aria-pressed',m==='spread'); document.getElementById('mRepr').setAttribute('aria-pressed',m==='representative'); draw();}));
+document.getElementById('basis').addEventListener('change',e=>{st.basis=e.target.value;draw();});
+document.getElementById('view').addEventListener('change',e=>{st.view=e.target.value;draw();});
+draw();
+</script>
+</body>
+</html>

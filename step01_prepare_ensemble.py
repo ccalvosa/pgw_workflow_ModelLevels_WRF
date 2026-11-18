@@ -32,11 +32,11 @@ import collections
 import json
 import os
 import sys
-from multiprocessing import Pool
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from pgw_ml import ensemble as ens                                            # noqa: E402
 from pgw_ml.gribio import find_files, read_valid_datetime                      # noqa: E402
+from pgw_ml.parallel import robust_map                                         # noqa: E402
 from pgw_ml.prepare import read_grid, check_rotated_grid, prepare_model       # noqa: E402
 
 _GI = None
@@ -174,75 +174,70 @@ def main():
             sys.exit(f"ERROR: {tag}: no valid model")
 
     nproc = max(1, args.nproc)
-    pool = Pool(nproc, initializer=_init, initargs=(gi,))
-    try:
-        # ── Domain features (native grid) ───────────────────────────────────
-        jobs = [((tag, m), available[tag][m], valid, args.month)
-                for tag in scen for m in cands[tag]]
-        print(f">> Domain features of {len(jobs)} (scenario, model) pairs on the native grid ...")
-        feats = {tag: {} for tag in scen}
-        for (tag, m), f, err in pool.imap(_features, jobs):
-            if err:
-                excluded[tag][m] = f"failed to read deltas: {err}"
-                print(f"     [EXCLUDED] {tag}/{m}: {err}")
-            else:
-                feats[tag][m] = f
-        for tag in scen:
-            cands[tag] = [m for m in cands[tag] if m in feats[tag]]
-        if common and len(scen) > 1:
-            inter = [m for m in cands[next(iter(scen))] if all(m in feats[t] for t in scen)]
-            cands = {t: list(inter) for t in scen}
-        for tag in scen:
-            print(f"   {tag}:  {'model':20s} {'ΔT850-300':>10s} {'Δtas':>7s} {'ΔRH850-500':>11s} {'Δts':>7s}")
-            for m in cands[tag]:
-                f = feats[tag][m]
-                print(f"   {'':{len(tag)}s}   {m:20s} {f['dT_trop']:+10.2f} {f['dtas']:+7.2f} "
-                      f"{f['dRH']:+11.2f} {f['dts']:+7.2f}")
+    # ── Domain features (native grid) ───────────────────────────────────
+    jobs = [((tag, m), available[tag][m], valid, args.month)
+            for tag in scen for m in cands[tag]]
+    print(f">> Domain features of {len(jobs)} (scenario, model) pairs on the native grid ...")
+    feats = {tag: {} for tag in scen}
+    for (tag, m), f, err in robust_map(_features, jobs, nproc, _init, (gi,)):
+        if err:
+            excluded[tag][m] = f"failed to read deltas: {err}"
+            print(f"     [EXCLUDED] {tag}/{m}: {err}")
+        else:
+            feats[tag][m] = f
+    for tag in scen:
+        cands[tag] = [m for m in cands[tag] if m in feats[tag]]
+    if common and len(scen) > 1:
+        inter = [m for m in cands[next(iter(scen))] if all(m in feats[t] for t in scen)]
+        cands = {t: list(inter) for t in scen}
+    for tag in scen:
+        print(f"   {tag}:  {'model':20s} {'ΔT850-300':>10s} {'Δtas':>7s} {'ΔRH850-500':>11s} {'Δts':>7s}")
+        for m in cands[tag]:
+            f = feats[tag][m]
+            print(f"   {'':{len(tag)}s}   {m:20s} {f['dT_trop']:+10.2f} {f['dtas']:+7.2f} "
+                  f"{f['dRH']:+11.2f} {f['dts']:+7.2f}")
 
-        # ── Selection ───────────────────────────────────────────────────────
-        selected, sel_info = {}, {}
-        if mode.lower() == "auto":
-            if common:
-                comb = {m: {f"{t}:{k}": feats[t][m][k] for t in scen for k in ens.FEATURES}
-                        for m in cands[next(iter(scen))]}
-                sel, info = ens.select_auto(comb, args.n_models, args.auto_method)
-                for tag in scen:
-                    selected[tag], sel_info[tag] = list(sel), dict(info, mode="auto", common=True)
-            else:
-                for tag in scen:
-                    sub = {m: {k: feats[tag][m][k] for k in ens.FEATURES} for m in cands[tag]}
-                    selected[tag], info = ens.select_auto(sub, args.n_models, args.auto_method)
-                    sel_info[tag] = dict(info, mode="auto", common=False)
+    # ── Selection ───────────────────────────────────────────────────────
+    selected, sel_info = {}, {}
+    if mode.lower() == "auto":
+        if common:
+            comb = {m: {f"{t}:{k}": feats[t][m][k] for t in scen for k in ens.FEATURES}
+                    for m in cands[next(iter(scen))]}
+            sel, info = ens.select_auto(comb, args.n_models, args.auto_method)
             for tag in scen:
-                print(f">> {tag}: automatic selection ({args.auto_method}, N={args.n_models}): "
-                      f"{' '.join(selected[tag])}")
-                if "note" in sel_info[tag]:
-                    print(f"     {sel_info[tag]['note']}")
+                selected[tag], sel_info[tag] = list(sel), dict(info, mode="auto", common=True)
         else:
             for tag in scen:
-                selected[tag] = list(cands[tag])
-                sel_info[tag] = {"mode": mode}
-                print(f">> {tag}: models ({len(selected[tag])}): {' '.join(selected[tag])}")
+                sub = {m: {k: feats[tag][m][k] for k in ens.FEATURES} for m in cands[tag]}
+                selected[tag], info = ens.select_auto(sub, args.n_models, args.auto_method)
+                sel_info[tag] = dict(info, mode="auto", common=False)
+        for tag in scen:
+            print(f">> {tag}: automatic selection ({args.auto_method}, N={args.n_models}): "
+                  f"{' '.join(selected[tag])}")
+            if "note" in sel_info[tag]:
+                print(f"     {sel_info[tag]['note']}")
+    else:
+        for tag in scen:
+            selected[tag] = list(cands[tag])
+            sel_info[tag] = {"mode": mode}
+            print(f">> {tag}: models ({len(selected[tag])}): {' '.join(selected[tag])}")
 
-        # ── Regridding to the input grid ─────────────────────────────────
-        on_grid = {tag: {m: os.path.join(args.out_dir, tag, m, "deltas_on_grid.nc")
-                         for m in selected[tag]} for tag in scen}
-        jobs = [((tag, m), available[tag][m], on_grid[tag][m], args.margin, not args.no_reuse)
-                for tag in scen for m in selected[tag]]
-        print(f">> Regridding {len(jobs)} (scenario, model) pairs to the grid ...")
-        for (tag, m), status, logs in pool.imap(_regrid, jobs):
-            if status == "error":
-                excluded[tag][m] = f"regridding failed: {logs[0]}"
-                selected[tag].remove(m)
-                del on_grid[tag][m]
-                print(f"     [EXCLUDED] {tag}/{m}: {logs[0]}")
-            else:
-                print(f"     [{'OK' if status == 'ok' else 'REUSED'}] {tag}/{m}")
-                for line in logs or []:
-                    print("       ", line.strip())
-    finally:
-        pool.close()
-        pool.join()
+    # ── Regridding to the input grid ─────────────────────────────────
+    on_grid = {tag: {m: os.path.join(args.out_dir, tag, m, "deltas_on_grid.nc")
+                     for m in selected[tag]} for tag in scen}
+    jobs = [((tag, m), available[tag][m], on_grid[tag][m], args.margin, not args.no_reuse)
+            for tag in scen for m in selected[tag]]
+    print(f">> Regridding {len(jobs)} (scenario, model) pairs to the grid ...")
+    for (tag, m), status, logs in robust_map(_regrid, jobs, nproc, _init, (gi,)):
+        if status == "error":
+            excluded[tag][m] = f"regridding failed: {logs[0]}"
+            selected[tag].remove(m)
+            del on_grid[tag][m]
+            print(f"     [EXCLUDED] {tag}/{m}: {logs[0]}")
+        else:
+            print(f"     [{'OK' if status == 'ok' else 'REUSED'}] {tag}/{m}")
+            for line in logs or []:
+                print("       ", line.strip())
 
     # ── ENSMEAN and output ───────────────────────────────────────────────────
     summary, lines = {}, []

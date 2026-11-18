@@ -21,7 +21,8 @@ Two phases, both parallel over (member, file):
   * a deltas_on_grid.nc  -> single member; output in <output_root>/...
   * a members.txt (from step01_prepare_ensemble.py, lines "NAME PATH")
     -> several members (models + ENSMEAN); output in <output_root>/<NAME>/...
-    All (member, file) tasks share the same Pool.
+    All (member, file) tasks of a phase share the same process pool; tasks of
+    a worker that dies are resubmitted (pgw_ml/parallel.py).
 
 Usage:
   python3 step02_apply_pgw.py <input_root> <output_root> <deltas> [options]
@@ -33,12 +34,12 @@ import os
 import sys
 import time
 from datetime import datetime
-from multiprocessing import Pool
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from pgw_ml.apply import PGWOptions, apply_pgw_to_file, options_dict   # noqa: E402
 from pgw_ml.deltas import Deltas                                        # noqa: E402
 from pgw_ml.gribio import find_files                                    # noqa: E402
+from pgw_ml.parallel import robust_map                                  # noqa: E402
 from pgw_ml.surface import apply_pgw_to_sfc_file, save_state            # noqa: E402
 
 _DELTAS = {}
@@ -173,37 +174,36 @@ def main():
 
     n_err = 0
     try:
-        with Pool(args.nproc, initializer=_init, initargs=(opt,)) as pool:
-            for phase, jobs in (("A: model levels", jobs_ml), ("B: surface", jobs_sfc)):
-                if not jobs:
-                    continue
-                print(f">> Phase {phase} ({len(jobs)} tasks)")
-                for diag in pool.imap_unordered(_work, jobs):
-                    m = diag["member"]
-                    fdiag[m].write(json.dumps(diag) + "\n")
-                    fdiag[m].flush()
-                    rel = os.path.join(m, os.path.relpath(diag["file"], in_root))
-                    if diag["status"] == "ok" and diag.get("kind") == "sfc":
-                        print(f"  [OK] {rel}  ({diag['seconds']} s)  times={diag['n_times']} "
-                              f"(uncoupled={diag['n_uncoupled']})  first time: "
-                              f"Δsp={diag.get('first_dsp', float('nan')):+.1f} Pa  "
-                              f"Δmsl={diag.get('first_dmsl', float('nan')):+.1f} Pa  "
-                              f"Δ2t={diag.get('first_d2t', float('nan')):+.2f} K  "
-                              f"Δ2d={diag.get('first_d2d', float('nan')):+.2f} K  "
-                              f"ΔSST={diag.get('first_dsst', float('nan')):+.2f} K")
-                        if diag["n_uncoupled"]:
-                            u = diag["uncoupled"]
-                            print(f"     [WARNING] {len(u)} times without model-level file (sp, msl "
-                                  f"unchanged; 2t with Δtas): {u[0]}" + (f" ... {u[-1]}" if len(u) > 1 else ""))
-                    elif diag["status"] == "ok":
-                        print(f"  [OK] {rel}  ({diag['seconds']} s)  months={diag['month_weights']}  "
-                              f"Δps={diag['dps_mean']:+.1f} Pa [{diag['dps_min']:+.1f},{diag['dps_max']:+.1f}] "
-                              f"it={diag.get('ps_iterations', '-')}  "
-                              f"ΔT(level 137)={diag['dT_lowest_mean']:+.2f} K  "
-                              f"ΔT850={diag['dT_850_mean']:+.2f}  ΔT500={diag['dT_500_mean']:+.2f}")
-                    else:
-                        n_err += 1
-                        print(f"  [ERROR] {rel}: {diag['error']}")
+        for phase, jobs in (("A: model levels", jobs_ml), ("B: surface", jobs_sfc)):
+            if not jobs:
+                continue
+            print(f">> Phase {phase} ({len(jobs)} tasks)")
+            for diag in robust_map(_work, jobs, args.nproc, _init, (opt,)):
+                m = diag["member"]
+                fdiag[m].write(json.dumps(diag) + "\n")
+                fdiag[m].flush()
+                rel = os.path.join(m, os.path.relpath(diag["file"], in_root))
+                if diag["status"] == "ok" and diag.get("kind") == "sfc":
+                    print(f"  [OK] {rel}  ({diag['seconds']} s)  times={diag['n_times']} "
+                          f"(uncoupled={diag['n_uncoupled']})  first time: "
+                          f"Δsp={diag.get('first_dsp', float('nan')):+.1f} Pa  "
+                          f"Δmsl={diag.get('first_dmsl', float('nan')):+.1f} Pa  "
+                          f"Δ2t={diag.get('first_d2t', float('nan')):+.2f} K  "
+                          f"Δ2d={diag.get('first_d2d', float('nan')):+.2f} K  "
+                          f"ΔSST={diag.get('first_dsst', float('nan')):+.2f} K")
+                    if diag["n_uncoupled"]:
+                        u = diag["uncoupled"]
+                        print(f"     [WARNING] {len(u)} times without model-level file (sp, msl "
+                              f"unchanged; 2t with Δtas): {u[0]}" + (f" ... {u[-1]}" if len(u) > 1 else ""))
+                elif diag["status"] == "ok":
+                    print(f"  [OK] {rel}  ({diag['seconds']} s)  months={diag['month_weights']}  "
+                          f"Δps={diag['dps_mean']:+.1f} Pa [{diag['dps_min']:+.1f},{diag['dps_max']:+.1f}] "
+                          f"it={diag.get('ps_iterations', '-')}  "
+                          f"ΔT(level 137)={diag['dT_lowest_mean']:+.2f} K  "
+                          f"ΔT850={diag['dT_850_mean']:+.2f}  ΔT500={diag['dT_500_mean']:+.2f}")
+                else:
+                    n_err += 1
+                    print(f"  [ERROR] {rel}: {diag['error']}")
     finally:
         for fh in fdiag.values():
             fh.close()

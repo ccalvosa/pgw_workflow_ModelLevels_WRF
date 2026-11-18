@@ -32,7 +32,6 @@ import json
 import os
 import sys
 from datetime import datetime
-from multiprocessing import Pool
 
 import numpy as np
 
@@ -40,6 +39,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from pgw_ml.apply import PGWOptions                                     # noqa: E402
 from pgw_ml.deltas import Deltas, time_weights                          # noqa: E402
 from pgw_ml.verify import verify_file                                   # noqa: E402
+from pgw_ml.parallel import robust_map                                  # noqa: E402
 
 TOL_ENS_T = 0.01        # K: ΔT(ENSMEAN) - mean(ΔT models)
 TOL_REGRID = 0.02       # K: regridding versus xarray.interp
@@ -609,16 +609,16 @@ def main():
     rows, errors = [], []
     results = {tag: [] for tag in plan}
     dchecks = {tag: {} for tag in plan}
-    with Pool(max(1, min(args.nproc, len(jobs) or 1))) as pool:
-        for tag, m, res in pool.imap_unordered(_check_deltas, djobs):
-            dchecks[tag][m] = res
-        for r in pool.imap_unordered(_work, jobs):
-            results[r["tag"]].append(r)
-            errors += r["errors"]
-            nb = sum(not v.get("ok", True) for mm in r["members"].values()
-                     for v in mm["metrics"].values())
-            print(f"  [{'OK ' if nb == 0 and not r['errors'] else 'BAD'}] {r['tag']}/{r['rel']}: "
-                  f"{len(r['members'])} members, {nb} failed checks")
+    npool = max(1, min(args.nproc, len(jobs) or 1))
+    for tag, m, res in robust_map(_check_deltas, djobs, npool):
+        dchecks[tag][m] = res
+    for r in robust_map(_work, jobs, npool):
+        results[r["tag"]].append(r)
+        errors += r["errors"]
+        nb = sum(not v.get("ok", True) for mm in r["members"].values()
+                 for v in mm["metrics"].values())
+        print(f"  [{'OK ' if nb == 0 and not r['errors'] else 'BAD'}] {r['tag']}/{r['rel']}: "
+              f"{len(r['members'])} members, {nb} failed checks")
 
     ctx = {"input_root": args.input_root, "output_root": out_root, "summary": {},
            "scen": {}, "errors": errors, "n_bad": len(errors)}

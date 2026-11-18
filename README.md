@@ -19,6 +19,12 @@ the WPS surface file consistently with the adjusted model levels (§5.3).
 
 The methodology follows PGW4ERA5 ([Brogli et al., 2023](https://doi.org/10.5194/gmd-16-907-2023)).
 
+🌐 **Project website:** <https://ccalvosa.github.io/pgw_workflow_ModelLevels_WRF/>
+
+📄 **Technical note (PDF):** [`docs/latex/pgw_wrf_modellevels_technical_note.pdf`](docs/latex/pgw_wrf_modellevels_technical_note.pdf)
+
+![Surface-file changes](docs/figures/surface_Future_ssp585_ENSMEAN.png)
+
 ---
 
 ## 1. Quick start
@@ -65,6 +71,9 @@ Vtables (`Vtable.ECMWF_ml`, `Vtable.ECMWF_sigma` or the ERA5 ones) and
   (`NPROC`) or `CHUNK`.
 * **Cost.** About 25 s per model-level file and member and 15 s per surface
   file and member, per process, for a 401×401 domain.
+* **Robustness.** If a worker process dies (for example, killed by a memory
+  limit), the pool is recreated and only the unfinished tasks are resubmitted
+  (up to two times), instead of hanging.
 * **Attribution year.** The attribution deltas exist for event years
   2020–2030. With `ATTRIB_YEAR=auto` and an event outside that range (e.g.,
   2017), the closest available year is used with a warning. Set
@@ -243,7 +252,30 @@ python3 tests/test_zero_deltas.py <ECMWF_PL_file> <_deltas/.../deltas_on_grid.nc
 
 ---
 
-## 8. Limitations
+## 8. Example: Hurricane Ophelia, 7 October 2017
+
+ERA5 input for WPS on a 401×401 grid at 0.1° (files valid at 00 and 06 UTC on
+7 October 2017), attribution deltas of 2020 (closest available year) and
+ssp585, five models selected automatically (ACCESS-ESM1-5, EC-Earth3-Veg,
+GISS-E2-2-G, CanESM5, HadGEM3-GC31-LL) plus the ENSMEAN. The job ran on SLURM
+with 8 processes in 13.5 minutes and all checks passed for the 12 members.
+
+| Scenario | Member | ΔT850 (K) | ΔT500 (K) | ΔRH850 (%) | Δps (Pa) | ΔSST (K) |
+|----------|--------|----------:|----------:|-----------:|---------:|---------:|
+| Attribution (2020) | **ENSMEAN** | −1.52 | −1.76 | +0.61 | −9.4 | −1.10 |
+| ssp585 | **ENSMEAN** | +4.82 | +5.61 | −2.35 | +17.0 | +3.82 |
+
+Worst verification errors: 0.50 p.u. for T, skt, sst and stl1-4, 0.57 p.u.
+for q, 0.22 Pa for sp, 0.13 Pa for msl, 4.9·10⁻⁴ K for 2t and 2d, 2.4 cm for
+Δzg at 300 hPa. Full tables and figures are in the technical note.
+
+![ssp585 profiles](docs/figures/profiles_Future_ssp585.png)
+
+![ENSMEAN verification](docs/figures/member_Future_ssp585_ENSMEAN.png)
+
+---
+
+## 9. Limitations
 
 * The experiments keep the synoptic evolution of the driving analysis and
   evaluate conditional changes in the simulated event, not changes in its
@@ -254,7 +286,8 @@ python3 tests/test_zero_deltas.py <ECMWF_PL_file> <_deltas/.../deltas_on_grid.nc
   original IFS msl. It is consistent with the change in $p_s$ and $T_L$ but
   is not the IFS sea-level reduction itself.
 * Soil moisture, snow and sea ice are not perturbed.
-* A WRF integration with the perturbed files has not been tested yet.
+* The perturbed files have not yet been processed by WPS and integrated with
+  WRF.
 
 ---
 
