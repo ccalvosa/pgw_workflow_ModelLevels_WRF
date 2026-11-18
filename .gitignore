@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+logs/*.out
+*.tmp
+docs/latex/*.aux
+docs/latex/*.log
+docs/latex/*.out
+docs/latex/*.toc
+docs/latex/*.bbl
+docs/latex/*.blg
+docs/latex/*.fls
+docs/latex/*.fdb_latexmk
+docs/latex/*.synctex.gz
